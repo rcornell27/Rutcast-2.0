@@ -28,6 +28,7 @@ header .wrap{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .brand{font:700 26px "Barlow Condensed",sans-serif;margin-right:auto}.brand b{color:var(--blaze)}
 header input{width:min(260px,100%);background:#2a3a23;border-color:#3d5233;color:#fff}
 header button{background:#2a3a23;border-color:#3d5233;color:#fff}
+.locpick{width:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center}.locpick[hidden]{display:none}.locpick button{min-height:40px;font-size:15px}
 .stamp{font-size:13px;color:#b9c4a8;width:100%}
 #banner{background:#ffe2cc;color:#4a1f00;padding:10px max(5vw,16px);font-size:15px}
 .hero{background:var(--board);color:var(--boardink);padding-top:8px}
@@ -84,9 +85,10 @@ nav a{color:var(--ink);text-decoration:none;white-space:nowrap}
 </style></head><body>
 <header><div class="wrap">
 <div class="brand">Rut<b>Cast</b></div>
-<form id="locform" style="display:flex;gap:8px;flex-wrap:wrap"><input id="locq" placeholder="Town or lat, lon" aria-label="Location"><button>Go</button><button type="button" id="gps">My location</button></form>
+<form id="locform" style="display:flex;gap:8px;flex-wrap:wrap"><input id="locq" placeholder="Town, State or ZIP" aria-label="Location"><button>Go</button><button type="button" id="gps">My location</button></form>
 <button type="button" id="refresh">Refresh</button>
 <div class="stamp" id="stamp">Loading…</div>
+<div id="locpick" class="locpick" hidden></div>
 </div></header>
 <div id="banner" hidden></div>
 <section class="band hero"><div class="wrap herogrid">
@@ -98,7 +100,7 @@ nav a{color:var(--ink);text-decoration:none;white-space:nowrap}
 </div>
 <div class="phase"><div id="moonpic"></div><div><h3 id="rutname"></h3><div class="sub" id="rutdays"></div><p id="ruttip"></p><p class="sub small" id="moontxt"></p></div></div>
 </div></section>
-<nav class="scroll"><a href="#hours">Hourly</a><a href="#week">7 days</a><a href="#stands">Stand map</a><a href="#settings">Settings</a></nav>
+<nav class="scroll"><a href="#hours">Hourly</a><a href="#week">14 days</a><a href="#stands">Stand map</a><a href="#settings">Settings</a></nav>
 <section class="band" id="hours"><div class="wrap">
 <h2>Next 48 hours</h2><div class="sub">Tap a bar to see what is driving the score. Faded bars are outside shooting light.</div>
 <div class="legend"><span><i style="background:var(--blaze)"></i>Good to excellent (65+)</span><span><i style="background:var(--olive)"></i>Fair (50–64)</span><span><i style="background:var(--mute)"></i>Slow</span></div>
@@ -108,13 +110,14 @@ nav a{color:var(--ink);text-decoration:none;white-space:nowrap}
 <div class="hlist" id="hlist"></div>
 </div></section>
 <section class="band" id="week" style="padding-top:0"><div class="wrap">
-<h2>Seven-day outlook</h2><div class="sub" style="margin-bottom:12px">Morning sit runs from 30 minutes before sunrise to 3 hours after; evening sit the last 3 hours of light.</div>
+<h2>14-day outlook</h2><div class="sub" style="margin-bottom:12px">Morning sit runs from 30 minutes before sunrise to 3 hours after; evening sit the last 3 hours of light. Days 8–14 use long-range weather, so treat them as a rough guide and check back as they get closer.</div>
 <div class="week" id="days"></div>
 </div></section>
 <section class="band" id="stands" style="padding-top:0"><div class="wrap">
 <h2>Stand map</h2><div class="sub" style="margin-bottom:12px">Tap the map to drop a stand. Each one is ranked for the next sit by rut phase, spot type and whether the wind carries your scent away from where deer come from.</div>
 <div class="standgrid">
 <div><div id="mapbox" style="position:relative"><div id="map"></div><div class="windbadge" id="windbadge"></div></div>
+<button type="button" id="maphere" style="margin-top:10px;width:100%">Use map center as forecast location</button>
 <div class="empty" id="mapnote" hidden>The live map needs the full app opened in a normal browser. You can still add stands with coordinates below.</div></div>
 <div><div class="row" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h3 style="font-size:24px">Best stands next</h3><button type="button" id="addstand">Add stand</button></div><div class="list" id="standlist"></div></div>
 </div></div></section>
@@ -215,14 +218,14 @@ function nextSits(){const now=Date.now(),keys=[...new Set(H.map(h=>dayKey(new Da
 for(const k of keys){const D=dayInfo(k),today=k===dayKey(new Date());for(const [kind,T] of [['AM',D.sr.getTime()+HR],['PM',D.ss.getTime()-HR]]){if(T>now-HR&&out.length<2){const i=iAt(T);if(i>=0)out.push({k,kind,i,label:(today?(kind==='AM'?'This morning':'This evening'):(k===dayKey(new Date(now+864e5))?'Tomorrow ':fmtDay(k)+' ')+(today?'':kind==='AM'?'morning':'evening'))})}}}return out}
 /* ---------- weather ---------- */
 async function load(){$('#stamp').textContent='Updating…';
-try{const u=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lng}&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,cloud_cover&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&past_days=1&forecast_days=7`;
+try{const u=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lng}&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,cloud_cover&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&past_days=1&forecast_days=15`;
 const r=await fetch(u);if(!r.ok)throw new Error(r.status);const j=await r.json();OFF=j.utc_offset_seconds;const x=j.hourly;
 H=x.time.map((t,i)=>({t:Date.parse(t+':00Z')-OFF*1e3,temp:x.temperature_2m[i],pres:x.pressure_msl[i],ws:x.wind_speed_10m[i],wd:x.wind_direction_10m[i],gust:x.wind_gusts_10m[i],pr:x.precipitation[i]||0,cc:x.cloud_cover[i]})).filter(h=>h.temp!=null&&h.pres!=null);
 LIVE=true;$('#banner').hidden=true}
 catch(err){LIVE=false;H=demo();$('#banner').hidden=false;$('#banner').textContent='Live weather can’t load in this preview, so the weather below is made-up sample data. Moon, sun and rut timing are real. Open the full app in a regular browser for live hourly weather and the satellite map.'}
 cache={};SC=H.map((_,i)=>score(i));updated=Date.now();if(sel===null||sel>=H.length)sel=null;render();if(!map)initMap();else{map.setView([S.lat,S.lng]);drawStands()}}
 function demo(){const start=Date.parse(dayKey(new Date(Date.now()-864e5))+'T00:00:00Z')-OFF*1e3,out=[];
-for(let i=0;i<192;i++){const lh=i%24,d=Math.floor(i/24),front=d>=3?-9:0;out.push({t:start+i*HR,temp:42+front+9*Math.sin((lh-9)/24*2*Math.PI),pres:1014+(d===2?-lh/3:d===3?-8+lh/3:d>3?2:0),ws:Math.max(1,5+4*Math.sin(i/7)+(d===2?6:0)),wd:((d<2?200:d===2?240:310)+20*Math.sin(i/5)+360)%360,gust:0,pr:d===2&&lh>14&&lh<22?.06:0,cc:50});out[i].gust=out[i].ws*1.6}return out}
+for(let i=0;i<384;i++){const lh=i%24,d=Math.floor(i/24),front=d>=3?-9:0;out.push({t:start+i*HR,temp:42+front+9*Math.sin((lh-9)/24*2*Math.PI),pres:1014+(d===2?-lh/3:d===3?-8+lh/3:d>3?2:0),ws:Math.max(1,5+4*Math.sin(i/7)+(d===2?6:0)),wd:((d<2?200:d===2?240:310)+20*Math.sin(i/5)+360)%360,gust:0,pr:d===2&&lh>14&&lh<22?.06:0,cc:50});out[i].gust=out[i].ws*1.6}return out}
 /* ---------- render ---------- */
 function render(){const now=Date.now(),ni=Math.max(0,iAt(now)),s=SC[ni],h=H[ni],D=dayInfo(dayKey(new Date(now))),rp=rut(new Date(now)),il=illum(new Date(now));
 $('#stamp').textContent=`${LIVE?'Live weather':'Sample weather'} · updated ${new Date(updated).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · refreshes every hour`;
@@ -251,12 +254,12 @@ function renderDetail(i){const s=SC[i],h=H[i],t=new Date(h.t);
 $('#detail').innerHTML=`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><b>${fmtDay(dayKey(t))} · ${fmtT(t)}</b><span class="pill" style="background:${hex(s.v)}">${s.v} ${word(s.v)}</span></div>
 <div class="sub small">${Math.round(h.temp)}°F · wind ${dirName(h.wd)} ${Math.round(h.ws)} mph, gusts ${Math.round(h.gust)} · ${(h.pres*.02953).toFixed(2)} inHg · precip ${h.pr.toFixed(2)} in</div>
 <ul>${s.f.map(([l,d])=>`<li><span>${l}</span><span class="${d>0?'pos':d<0?'neg':'sub'}">${d?(d>0?'+':'−')+Math.round(Math.abs(d)*100):''}</span></li>`).join('')}</ul>`}
-function renderDays(){const keys=[...new Set(H.map(h=>dayKey(new Date(h.t))))].filter(k=>k>=dayKey(new Date())).slice(0,7);
-$('#days').innerHTML=keys.map(k=>{const d=sits(k),best=Math.max(d.am,d.pm),w=d.ai>=0?H[d.ai]:null;return `<div class="day"><div class="row"><b>${fmtDay(k)}</b>${moonSvg(d.D.phase,26)}</div>
+function renderDays(){const keys=[...new Set(H.map(h=>dayKey(new Date(h.t))))].filter(k=>k>=dayKey(new Date())).slice(0,14);
+$('#days').innerHTML=keys.map((k,n)=>{const d=sits(k),best=Math.max(d.am,d.pm),w=d.ai>=0?H[d.ai]:null;return `<div class="day"><div class="row"><b>${fmtDay(k)}</b>${moonSvg(d.D.phase,26)}</div>
 <div class="row"><span class="sub">Morning</span><span class="pill" style="background:${hex(d.am)}">${d.am}</span></div>
 <div class="row"><span class="sub">Evening</span><span class="pill" style="background:${hex(d.pm)}">${d.pm}</span></div>
 <div class="small">${Math.round(d.hi)}° / ${Math.round(d.lo)}°F${w?` · AM wind ${dirName(w.wd)} ${Math.round(w.ws)}`:''}</div>
-<div class="small sub">${word(best)} day · ${rut(new Date(Date.parse(k+'T12:00:00Z'))).name}</div></div>`}).join('')}
+<div class="small sub">${word(best)} day · ${rut(new Date(Date.parse(k+'T12:00:00Z'))).name}${n>=7?' · long range':''}</div></div>`}).join('')}
 /* ---------- stands ---------- */
 if(!S.stands){S.stands=[{id:1,name:'Saddle ladder (sample)',type:'saddle',from:270,lat:S.lat+.004,lng:S.lng-.003},{id:2,name:'Bean field edge (sample)',type:'food',from:180,lat:S.lat-.003,lng:S.lng+.004},{id:3,name:'Creek crossing (sample)',type:'creek',from:45,lat:S.lat+.001,lng:S.lng+.006}];store.set('stands',S.stands)}
 function standScore(s,i){if(i<0)return null;const w=H[i],fit=Math.cos((w.wd-s.from)*rad),tw=SC[i].rp.w[s.type]??.5;return{v:Math.round(Math.max(0,Math.min(100,SC[i].v*.45+tw*35+fit*20))),fit}}
@@ -272,7 +275,7 @@ drawStands()}
 function drawStands(){if(!map)return;layer.clearLayers();const n=nextSits()[0];
 S.stands.forEach(s=>{const r=n?standScore(s,n.i):null;L.circleMarker([s.lat,s.lng],{radius:11,color:'#fff',weight:3,fillColor:hex(r?r.v:0),fillOpacity:1}).bindTooltip(`${esc(s.name)}${r?' · '+r.v:''}`,{permanent:true,direction:'right',offset:[10,0]}).addTo(layer)});
 const h=H[Math.max(0,iAt(Date.now()))];if(h)$('#windbadge').innerHTML=`<svg width="22" height="22" viewBox="-11 -11 22 22" style="transform:rotate(${h.wd+180}deg)" aria-hidden="true"><path d="M0-9L6 7L0 3L-6 7Z" fill="#ff6a13"/></svg>Wind from ${dirName(h.wd)} · ${Math.round(h.ws)} mph`}
-function initMap(){if(!window.L||!LIVE){$('#mapbox').hidden=true;$('#mapnote').hidden=false;return}
+function initMap(){if(!window.L||!LIVE){$('#mapbox').hidden=true;$('#maphere').hidden=true;$('#mapnote').hidden=false;return}
 map=L.map('map').setView([S.lat,S.lng],14);
 const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri'}),
 topo=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap, © OpenStreetMap contributors'}),
@@ -295,13 +298,27 @@ $('#hlist').addEventListener('click',ev=>{const r=ev.target.closest('[data-i]');
 $('#lightonly').addEventListener('change',renderList);
 const ro=new ResizeObserver(()=>{if(H.length)drawChart()});ro.observe($('#chartbox'));
 function setLoc(lat,lng,place){S.lat=lat;S.lng=lng;S.place=place;store.set('lat',lat);store.set('lng',lng);store.set('place',place);sel=null;load()}
-$('#locform').addEventListener('submit',async ev=>{ev.preventDefault();const q=$('#locq').value.trim();if(!q)return;const m=q.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
-if(m){setLoc(+m[1],+m[2],`${(+m[1]).toFixed(3)}, ${(+m[2]).toFixed(3)}`);return}
-try{const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=en&countryCode=US`);const j=await r.json();const p=j.results&&j.results[0];
-if(!p){$('#stamp').textContent=`Couldn’t find “${q}”. Try “Town, State” or lat, lon.`;return}setLoc(p.latitude,p.longitude,[p.name,p.admin1].filter(Boolean).join(', '))}
-catch(e){$('#stamp').textContent='Town search needs the full app. Enter lat, lon instead.'}});
-$('#gps').addEventListener('click',()=>{if(!navigator.geolocation){$('#stamp').textContent='Location isn’t available here. Enter a town or lat, lon.';return}
-navigator.geolocation.getCurrentPosition(p=>setLoc(p.coords.latitude,p.coords.longitude,'My location'),()=>{$('#stamp').textContent='Location was blocked. Enter a town or lat, lon.'},{timeout:10000})});
+const STATES={AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming'};
+function parseCoords(q){const m=q.toUpperCase().match(/^\s*(-?\d+(?:\.\d+)?)\s*°?\s*([NS])?\s*[,; ]\s*(-?\d+(?:\.\d+)?)\s*°?\s*([EW])?\s*$/);if(!m)return null;let a=+m[1],b=+m[3];if(m[2]==='S')a=-Math.abs(a);if(m[4]==='W')b=-Math.abs(b);if(Math.abs(a)>90||Math.abs(b)>180)return null;return[a,b]}
+function pick(list){const box=$('#locpick');box.innerHTML='<div class="sub small">Which one?</div>'+list.map((p,i)=>`<button type="button" data-p="${i}">${esc([p.name,p.admin2,p.admin1].filter(Boolean).join(', '))}</button>`).join('')+'<button type="button" data-p="x">Cancel</button>';box.hidden=false;
+box.onclick=ev=>{const b=ev.target.closest('[data-p]');if(!b)return;box.hidden=true;if(b.dataset.p==='x')return;const p=list[+b.dataset.p];setLoc(p.latitude,p.longitude,[p.name,p.admin1].filter(Boolean).join(', '))}}
+async function geo(name,us){const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=20&language=en&format=json${us?'&countryCode=US':''}`);const j=await r.json();return j.results||[]}
+$('#locform').addEventListener('submit',async ev=>{ev.preventDefault();$('#locpick').hidden=true;const q=$('#locq').value.trim();if(!q)return;const c=parseCoords(q);
+if(c){setLoc(c[0],c[1],`${c[0].toFixed(3)}, ${c[1].toFixed(3)}`);return}
+let parts=q.split(',').map(s=>s.trim()).filter(Boolean),name=parts[0],st=(parts[1]||'').replace(/\./g,'');
+if(parts.length===1){const m=name.match(/^(.*\S)\s+([A-Za-z]{2})$/);if(m&&STATES[m[2].toUpperCase()]){name=m[1];st=m[2]}}
+if(st.length===2)st=STATES[st.toUpperCase()]||st;
+$('#stamp').textContent=`Searching for “${q}”…`;
+try{let res=await geo(name,true);if(!res.length)res=await geo(name,false);
+if(st){const f=res.filter(p=>(p.admin1||'').toLowerCase().startsWith(st.toLowerCase()));if(f.length)res=f}
+if(!res.length){$('#stamp').textContent=`Couldn’t find “${q}”. Try a ZIP code, a nearby bigger town, or tap My location.`;return}
+if(res.length===1||st&&res.length&&res[0].admin1){const p=res[0];setLoc(p.latitude,p.longitude,[p.name,p.admin1].filter(Boolean).join(', '));return}
+$('#stamp').textContent='Pick the right one below the search box.';pick(res.slice(0,6))}
+catch(e){$('#stamp').textContent='Town search needs internet and the hosted app. Tap My location or paste coordinates.'}});
+$('#gps').addEventListener('click',()=>{if(!navigator.geolocation){$('#stamp').textContent='Location isn’t available here. Enter a town, ZIP or coordinates.';return}
+$('#stamp').textContent='Finding your location…';
+navigator.geolocation.getCurrentPosition(p=>setLoc(p.coords.latitude,p.coords.longitude,'My location'),err=>{$('#stamp').textContent=err.code===1?'Location permission is off for this site. On iPhone: Settings → Privacy & Security → Location Services → Safari Websites → While Using the App, then try again.':'Couldn’t get a GPS fix. Try again outside, or enter a town or ZIP.'},{enableHighAccuracy:true,timeout:15000,maximumAge:3e5})});
+$('#maphere').addEventListener('click',()=>{if(!map)return;const c=map.getCenter();setLoc(c.lat,c.lng,`Map spot ${c.lat.toFixed(3)}, ${c.lng.toFixed(3)}`);window.scrollTo({top:0,behavior:'smooth'})});
 $('#refresh').addEventListener('click',load);
 $('#region').innerHTML=Object.entries(REGIONS).map(([k,[n,d]])=>`<option value="${k}">${n} (peak ~${new Date('2026-'+d+'T12:00:00Z').toLocaleDateString(undefined,{month:'short',day:'numeric',timeZone:'UTC'})})</option>`).join('');
 $('#region').value=S.region;if(S.peak)$('#peak').value=`2026-${S.peak}`;
