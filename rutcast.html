@@ -47,6 +47,15 @@ header button{background:#2a3a23;border-color:#3d5233;color:#fff}
 .detail{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:12px}
 .detail ul{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:4px}
 .detail li{display:flex;justify-content:space-between;gap:12px}.pos{color:var(--olive);font-weight:600}.neg{color:#c4361a;font-weight:600}
+.hlhead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:24px 0 8px}
+.tog{display:flex;align-items:center;gap:8px;font-weight:500}.tog input{min-height:auto;width:20px;height:20px;accent-color:var(--blaze)}
+.hlist{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.hday{padding:8px 14px;font-weight:600;background:var(--bg);border-top:1px solid var(--line);font-size:15px}
+.hrow{display:grid;grid-template-columns:4.6em 3.2em minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);cursor:pointer}
+.hrow:hover,.hrow.on{background:light-dark(#f6f3ec,#20281c)}
+.hrow .t{font-weight:600;white-space:nowrap}.hrow .why{font-size:14px;color:var(--sub)}.hrow .wx{font-size:14px;text-align:right;white-space:nowrap}
+.hrow.dark{opacity:.55}
+@media(max-width:600px){.hrow{grid-template-columns:4.2em 3em minmax(0,1fr)}.hrow .wx{grid-column:3;text-align:left}}
 .week{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
 .day{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:6px}
 .day .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -95,6 +104,8 @@ nav a{color:var(--ink);text-decoration:none;white-space:nowrap}
 <div class="legend"><span><i style="background:var(--blaze)"></i>Good to excellent (65+)</span><span><i style="background:var(--olive)"></i>Fair (50–64)</span><span><i style="background:var(--mute)"></i>Slow</span></div>
 <div class="fig" id="chartbox"><svg id="chart" role="img" aria-label="Hourly deer movement score"></svg></div>
 <div class="detail" id="detail"></div>
+<div class="hlhead"><h3 style="font-size:24px">Hour by hour</h3><label class="tog"><input type="checkbox" id="lightonly" checked> Shooting light only</label></div>
+<div class="hlist" id="hlist"></div>
 </div></section>
 <section class="band" id="week" style="padding-top:0"><div class="wrap">
 <h2>Seven-day outlook</h2><div class="sub" style="margin-bottom:12px">Morning sit runs from 30 minutes before sunrise to 3 hours after; evening sit the last 3 hours of light.</div>
@@ -224,12 +235,18 @@ $('#moonpic').innerHTML=moonSvg(il.phase,88);$('#rutname').textContent=rp.name;
 $('#rutdays').textContent=rp.days===0?'Peak breeding date is today':`${Math.abs(rp.days)} day${Math.abs(rp.days)===1?'':'s'} ${rp.days<0?'before':'after'} peak breeding`;
 $('#ruttip').textContent=rp.tip;
 $('#moontxt').textContent=`${phaseName(il.phase)}, ${Math.round(il.frac*100)}% lit · moon overhead ${fmtT(D.mt)}, underfoot ${fmtT(D.mu)}`;
-drawChart();renderDetail(sel??ni);renderDays();renderStands()}
+drawChart();renderDetail(sel??ni);renderList();renderDays();renderStands()}
 function drawChart(){const svg=$('#chart'),W=svg.clientWidth,Hh=svg.clientHeight;if(!W)return;const ni=Math.max(0,iAt(Date.now())),n=Math.min(48,H.length-ni),bw=W/n,top=8,base=Hh-28,step=W<520?6:3;let o='';
 for(let j=0;j<n;j++){const i=ni+j,s=SC[i],bh=Math.max(3,(base-top)*s.v/100),x=j*bw;
 o+=`<rect class="bar" data-i="${i}" x="${x+1}" y="${base-bh}" width="${Math.max(1,bw-2)}" height="${bh}" rx="2" fill="${col(s.v)}" opacity="${s.light?1:.3}" stroke="${i===sel?'var(--ink)':'none'}" stroke-width="2"/>`;
 const l=lt(new Date(H[i].t));if(l.getUTCHours()%step===0)o+=`<text x="${x+bw/2}" y="${Hh-10}" text-anchor="middle" font-size="12" fill="var(--sub)">${l.getUTCHours()===0?fmtDay(dayKey(new Date(H[i].t))).split(',')[0]:fmtH(new Date(H[i].t))}</text>`}
 o+=`<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--line)"/>`;svg.innerHTML=o}
+function renderList(){const ni=Math.max(0,iAt(Date.now())),only=$('#lightonly').checked;let o='',last='';
+for(let i=ni;i<Math.min(H.length,ni+48);i++){const s=SC[i],h=H[i],t=new Date(h.t);if(only&&!s.light)continue;const k=dayKey(t);
+if(k!==last){o+=`<div class="hday">${k===dayKey(new Date())?'Today':fmtDay(k)} · sunrise ${fmtT(s.D.sr)} · sunset ${fmtT(s.D.ss)}</div>`;last=k}
+const big=s.f.filter(x=>Math.abs(x[1])>=.06&&!x[0].endsWith(' timing')).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]))[0],top=big||s.f[0];
+o+=`<div class="hrow${s.light?'':' dark'}${i===sel?' on':''}" data-i="${i}"><span class="t">${fmtT(t).replace(':00','')}</span><span class="pill" style="background:${hex(s.v)};text-align:center">${s.v}</span><span><b>${word(s.v)}</b> <span class="why">${top?'· '+top[0]:''}</span></span><span class="wx">${Math.round(h.temp)}° · ${dirName(h.wd)} ${Math.round(h.ws)} mph${h.pr>=.01?' · '+h.pr.toFixed(2)+'″':''}</span></div>`}
+$('#hlist').innerHTML=o||'<div class="hday">No shooting-light hours in the next 48 hours.</div>'}
 function renderDetail(i){const s=SC[i],h=H[i],t=new Date(h.t);
 $('#detail').innerHTML=`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><b>${fmtDay(dayKey(t))} · ${fmtT(t)}</b><span class="pill" style="background:${hex(s.v)}">${s.v} ${word(s.v)}</span></div>
 <div class="sub small">${Math.round(h.temp)}°F · wind ${dirName(h.wd)} ${Math.round(h.ws)} mph, gusts ${Math.round(h.gust)} · ${(h.pres*.02953).toFixed(2)} inHg · precip ${h.pr.toFixed(2)} in</div>
@@ -273,7 +290,9 @@ $('#standlist').addEventListener('click',ev=>{const d=ev.target.closest('[data-d
 if(d){S.stands=S.stands.filter(s=>s.id!=d.dataset.del);store.set('stands',S.stands);renderStands()}
 if(f&&map){const s=S.stands.find(s=>s.id==f.dataset.fly);map.setView([s.lat,s.lng],17);$('#map').scrollIntoView({behavior:'smooth',block:'center'})}});
 /* ---------- controls ---------- */
-$('#chart').addEventListener('click',ev=>{const r=ev.target.closest('[data-i]');if(!r)return;sel=+r.dataset.i;drawChart();renderDetail(sel)});
+$('#chart').addEventListener('click',ev=>{const r=ev.target.closest('[data-i]');if(!r)return;sel=+r.dataset.i;drawChart();renderDetail(sel);renderList()});
+$('#hlist').addEventListener('click',ev=>{const r=ev.target.closest('[data-i]');if(!r)return;sel=+r.dataset.i;drawChart();renderDetail(sel);renderList();$('#detail').scrollIntoView({behavior:'smooth',block:'center'})});
+$('#lightonly').addEventListener('change',renderList);
 const ro=new ResizeObserver(()=>{if(H.length)drawChart()});ro.observe($('#chartbox'));
 function setLoc(lat,lng,place){S.lat=lat;S.lng=lng;S.place=place;store.set('lat',lat);store.set('lng',lng);store.set('place',place);sel=null;load()}
 $('#locform').addEventListener('submit',async ev=>{ev.preventDefault();const q=$('#locq').value.trim();if(!q)return;const m=q.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
