@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RutCast deer forecast</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+/* VOICE: a hunter's field instrument: plain words, numbers you can act on before first light.
+   IDEA: a blaze-orange tag on a timber-dark forecast board.
+   PICTURE: the big live score with the moon beside it, then the 48-hour movement bars.
+   COLOUR and TYPE: timber green field, bark ink, one blaze orange; Barlow Condensed titles, Barlow body.
+   LAYOUT: score band full width, then hours, week, stand map, settings; stacks under 600px. */
+:root{color-scheme:light dark;--bg:light-dark(#eef0e8,#10140e);--ink:light-dark(#1b2117,#e6e9dc);--sub:light-dark(#596150,#a2aa95);--card:light-dark(#fff,#181e15);--line:light-dark(#d6dacb,#2b3326);--olive:light-dark(#5a6e3b,#9cb36f);--mute:light-dark(#b9bfac,#3d4636);--blaze:#ff6a13;--board:#1d2a18;--boardink:#eef1e4;--moonlit:#f1e6c0;--moondark:#33402c}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Barlow,system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3,.big{font-family:"Barlow Condensed",Barlow,sans-serif;line-height:1.05;margin:0;text-wrap:balance}
+h2{font-size:32px;margin-bottom:6px}
+.band{padding:clamp(24px,4vw,56px) max(5vw,16px)}
+.wrap{max-width:1240px;margin:0 auto}
+.sub{color:var(--sub)}.small{font-size:14px}
+button,input,select{font:inherit;font-size:16px;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:0 14px}
+button{cursor:pointer;font-weight:600}button.go{background:var(--blaze);border-color:var(--blaze);color:#1a0d04}
+:focus-visible{outline:3px solid var(--blaze);outline-offset:2px}
+header{background:var(--board);color:var(--boardink);padding:12px max(5vw,16px);position:sticky;top:0;z-index:1000}
+header .wrap{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.brand{font:700 26px "Barlow Condensed",sans-serif;margin-right:auto}.brand b{color:var(--blaze)}
+header input{width:min(260px,100%);background:#2a3a23;border-color:#3d5233;color:#fff}
+header button{background:#2a3a23;border-color:#3d5233;color:#fff}
+.stamp{font-size:13px;color:#b9c4a8;width:100%}
+#banner{background:#ffe2cc;color:#4a1f00;padding:10px max(5vw,16px);font-size:15px}
+.hero{background:var(--board);color:var(--boardink);padding-top:8px}
+.herogrid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:clamp(20px,4vw,48px);align-items:center}
+.score{display:flex;align-items:flex-end;gap:18px}
+.big{font-size:clamp(96px,16vw,168px);font-weight:700;color:var(--blaze)}
+.verdict{font:700 40px "Barlow Condensed",sans-serif}
+.hero .sub{color:#b9c4a8}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chip{background:#2a3a23;border-radius:999px;padding:6px 12px;font-size:15px;white-space:nowrap}
+.phase{background:#26351f;border-radius:16px;padding:18px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:center}
+.phase h3{font-size:30px;color:#fff}.phase p{margin:6px 0 0}
+.sit{margin-top:16px;border-left:4px solid var(--blaze);padding-left:12px}
+.fig{position:relative;min-height:260px}.fig>svg{position:absolute;inset:0;width:100%;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:14px;color:var(--sub);margin:8px 0}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.detail{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:12px}
+.detail ul{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:4px}
+.detail li{display:flex;justify-content:space-between;gap:12px}.pos{color:var(--olive);font-weight:600}.neg{color:#c4361a;font-weight:600}
+.week{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.day{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:6px}
+.day .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pill{font:700 20px "Barlow Condensed",sans-serif;padding:2px 10px;border-radius:8px;color:#fff;white-space:nowrap}
+.standgrid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:20px;align-items:start}
+#map{height:460px;border-radius:14px;border:1px solid var(--line)}
+.windbadge{position:absolute;top:10px;left:56px;z-index:500;background:rgba(20,28,16,.85);color:#fff;border-radius:10px;padding:6px 10px;font-size:14px;display:flex;gap:8px;align-items:center}
+.list{display:grid;gap:10px}
+.stand{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:6px}
+.stand .row{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.stand button{min-height:36px;padding:0 10px;font-size:14px}
+.empty{border:2px dashed var(--line);border-radius:14px;padding:20px;text-align:center;color:var(--sub)}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;display:grid;place-items:end center}
+.sheet[hidden]{display:none}
+.sheet form{background:var(--card);width:min(520px,100%);border-radius:18px 18px 0 0;padding:20px;display:grid;gap:12px}
+label{display:grid;gap:4px;font-weight:600;font-size:15px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+details{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-top:16px}
+summary{cursor:pointer;font-weight:600}
+nav.scroll{display:flex;gap:18px;overflow-x:auto;padding:10px max(5vw,16px);border-bottom:1px solid var(--line);font-weight:600}
+nav a{color:var(--ink);text-decoration:none;white-space:nowrap}
+.leaflet-container{font:14px Barlow,sans-serif}
+@media(max-width:820px){header{position:static}#locform{width:100%}#locq{flex:1}.herogrid,.standgrid{grid-template-columns:minmax(0,1fr)}#map{height:380px}}
+@media(prefers-reduced-motion:no-preference){.bar{transition:opacity .2s}}
+</style></head><body>
+<header><div class="wrap">
+<div class="brand">Rut<b>Cast</b></div>
+<form id="locform" style="display:flex;gap:8px;flex-wrap:wrap"><input id="locq" placeholder="Town or lat, lon" aria-label="Location"><button>Go</button><button type="button" id="gps">My location</button></form>
+<button type="button" id="refresh">Refresh</button>
+<div class="stamp" id="stamp">Loading…</div>
+</div></header>
+<div id="banner" hidden></div>
+<section class="band hero"><div class="wrap herogrid">
+<div>
+<div class="sub" id="nowlbl">Deer movement right now</div>
+<div class="score"><div class="big" id="nowv">--</div><div><div class="verdict" id="nowword"></div><div class="sub" id="place"></div></div></div>
+<div class="chips" id="chips"></div>
+<div class="sit" id="bestsit"></div>
+</div>
+<div class="phase"><div id="moonpic"></div><div><h3 id="rutname"></h3><div class="sub" id="rutdays"></div><p id="ruttip"></p><p class="sub small" id="moontxt"></p></div></div>
+</div></section>
+<nav class="scroll"><a href="#hours">Hourly</a><a href="#week">7 days</a><a href="#stands">Stand map</a><a href="#settings">Settings</a></nav>
+<section class="band" id="hours"><div class="wrap">
+<h2>Next 48 hours</h2><div class="sub">Tap a bar to see what is driving the score. Faded bars are outside shooting light.</div>
+<div class="legend"><span><i style="background:var(--blaze)"></i>Good to excellent (65+)</span><span><i style="background:var(--olive)"></i>Fair (50–64)</span><span><i style="background:var(--mute)"></i>Slow</span></div>
+<div class="fig" id="chartbox"><svg id="chart" role="img" aria-label="Hourly deer movement score"></svg></div>
+<div class="detail" id="detail"></div>
+</div></section>
+<section class="band" id="week" style="padding-top:0"><div class="wrap">
+<h2>Seven-day outlook</h2><div class="sub" style="margin-bottom:12px">Morning sit runs from 30 minutes before sunrise to 3 hours after; evening sit the last 3 hours of light.</div>
+<div class="week" id="days"></div>
+</div></section>
+<section class="band" id="stands" style="padding-top:0"><div class="wrap">
+<h2>Stand map</h2><div class="sub" style="margin-bottom:12px">Tap the map to drop a stand. Each one is ranked for the next sit by rut phase, spot type and whether the wind carries your scent away from where deer come from.</div>
+<div class="standgrid">
+<div><div id="mapbox" style="position:relative"><div id="map"></div><div class="windbadge" id="windbadge"></div></div>
+<div class="empty" id="mapnote" hidden>The live map needs the full app opened in a normal browser. You can still add stands with coordinates below.</div></div>
+<div><div class="row" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h3 style="font-size:24px">Best stands next</h3><button type="button" id="addstand">Add stand</button></div><div class="list" id="standlist"></div></div>
+</div></div></section>
+<section class="band" id="settings" style="padding-top:0"><div class="wrap">
+<h2>Settings</h2>
+<div class="settings">
+<label>Rut region<select id="region"></select></label>
+<label>Your peak breeding date (optional)<input type="date" id="peak"></label>
+</div>
+<div class="sub small" style="margin-top:8px">Peak dates are rough regional averages. Your state wildlife agency often publishes local breeding dates; set yours above for the best phase timing.</div>
+<details><summary>How the score works</summary><p>Each hour starts from daylight: deer move most in the hour around sunrise and sunset. Then it adds or subtracts for the rut phase (midday cruising during chasing and breeding), solunar periods (moon overhead, underfoot, rising or setting), a temperature drop from yesterday, pressure trend, wind, rain or snow, and a bright moon. Stands add how well the spot type fits the current phase and how the forecast wind lines up with where deer approach. It is a planning guide built on common hunting research and lore, not a guarantee.</p><p>Weather: Open-Meteo, refreshed every hour while the app is open. Moon and sun: calculated on your device.</p></details>
+</div></section>
+<div class="sheet" id="sheet" hidden><form id="standform">
+<h3 style="font-size:26px">New stand</h3>
+<label>Name<input id="sname" required placeholder="Ridge saddle ladder"></label>
+<div class="two"><label>Spot type<select id="stype"></select></label><label>Deer come from<select id="sfrom"></select></label></div>
+<div class="two"><label>Latitude<input id="slat" inputmode="decimal" required></label><label>Longitude<input id="slng" inputmode="decimal" required></label></div>
+<div style="display:flex;gap:10px;justify-content:flex-end"><button type="button" id="cancel">Cancel</button><button class="go">Save stand</button></div>
+</form></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+{
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store={get(k,d){try{const v=localStorage.getItem('rutcast.'+k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem('rutcast.'+k,JSON.stringify(v))}catch(e){}}};
+const DIRS=['N','NE','E','SE','S','SW','W','NW'];
+const dirName=d=>DIRS[Math.round((((d%360)+360)%360)/45)%8];
+const TYPES={funnel:'Funnel / pinch point',saddle:'Ridge saddle',scrape:'Scrape line',bedding:'Doe bedding edge',food:'Food plot / ag field',mast:'Oak flat / acorns',creek:'Creek crossing'};
+const PHASES=[
+{id:'early',name:'Early season',max:-31,mult:.9,tip:'Bucks are still on bed-to-feed patterns. Evening sits near food are best.',w:{food:1,mast:.9,bedding:.4,funnel:.5,scrape:.3,creek:.5,saddle:.4}},
+{id:'pre',name:'Pre-rut',max:-15,mult:1,tip:'Rubs and scrapes are getting hit. Hunt scrape lines and trails just off bedding.',w:{scrape:1,funnel:.8,bedding:.6,food:.7,mast:.7,creek:.6,saddle:.7}},
+{id:'chase',name:'Seeking & chasing',max:-4,mult:1.15,tip:'Bucks cruise all day. Sit funnels and saddles from dawn to dusk.',w:{funnel:1,saddle:1,creek:.85,bedding:.8,scrape:.7,food:.5,mast:.5}},
+{id:'peak',name:'Peak breeding',max:7,mult:1.05,tip:'Many bucks are locked down with does. Hunt doe bedding edges and the travel between them.',w:{bedding:1,funnel:.85,saddle:.75,creek:.7,food:.55,scrape:.3,mast:.5}},
+{id:'post',name:'Post-rut',max:20,mult:.9,tip:'Worn-down bucks go back to food. Afternoon sits on the best food near thick cover.',w:{food:1,mast:.85,bedding:.6,funnel:.6,saddle:.5,creek:.5,scrape:.35}},
+{id:'second',name:'Second rut',max:35,mult:1,tip:'Unbred does and doe fawns cycle again. Bucks check the food sources where does feed.',w:{food:1,funnel:.8,bedding:.75,saddle:.65,creek:.6,scrape:.5,mast:.7}},
+{id:'late',name:'Late season',max:1e9,mult:.95,tip:'Cold pushes deer to the best food. Afternoons after a cold snap are prime.',w:{food:1,mast:.75,bedding:.6,funnel:.5,saddle:.4,creek:.5,scrape:.2}}];
+const REGIONS={ne:['Northeast & Midwest','11-12'],plains:['Northern Plains','11-15'],midsouth:['Mid-South (KY, TN, VA)','11-15'],southeast:['Southeast (GA, SC, NC)','11-08'],gulf:['Gulf states (AL, MS)','01-10'],txhill:['Texas Hill Country','11-10'],stx:['South Texas','12-20']};
+const S={lat:store.get('lat',40.27),lng:store.get('lng',-76.88),place:store.get('place','Central Pennsylvania (sample spot)'),region:store.get('region','ne'),peak:store.get('peak',''),stands:store.get('stands',null)};
+let H=[],SC=[],OFF=-new Date().getTimezoneOffset()*60,LIVE=false,updated=null,sel=null,map=null,layer=null,timer=null;
+const HR=36e5,MIN=6e4;
+/* ---------- time in the hunt location ---------- */
+const lt=d=>new Date(d.getTime()+OFF*1e3);
+const dayKey=d=>lt(d).toISOString().slice(0,10);
+const fmtT=d=>{if(!d)return '—';const l=lt(d);let h=l.getUTCHours(),m=l.getUTCMinutes();return `${(h%12)||12}:${String(m).padStart(2,'0')} ${h<12?'AM':'PM'}`};
+const fmtH=d=>{const h=lt(d).getUTCHours();return `${(h%12)||12}${h<12?'a':'p'}`};
+const fmtDay=k=>new Date(k+'T12:00:00Z').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',timeZone:'UTC'});
+/* ---------- sun and moon (after SunCalc, V. Agafonkin) ---------- */
+const rad=Math.PI/180,e=rad*23.4397;
+const toDays=d=>d.valueOf()/864e5-0.5+2440588-2451545;
+const RA=(l,b)=>Math.atan2(Math.sin(l)*Math.cos(e)-Math.tan(b)*Math.sin(e),Math.cos(l));
+const DEC=(l,b)=>Math.asin(Math.sin(b)*Math.cos(e)+Math.cos(b)*Math.sin(e)*Math.sin(l));
+const sid=(d,lw)=>rad*(280.16+360.9856235*d)-lw;
+const altOf=(H,p,dec)=>Math.asin(Math.sin(p)*Math.sin(dec)+Math.cos(p)*Math.cos(dec)*Math.cos(H));
+function sunC(d){const M=rad*(357.5291+0.98560028*d),C=rad*(1.9148*Math.sin(M)+0.02*Math.sin(2*M)+0.0003*Math.sin(3*M)),L=M+C+rad*102.9372+Math.PI;return{dec:DEC(L,0),ra:RA(L,0)}}
+function moonC(d){const L=rad*(218.316+13.176396*d),M=rad*(134.963+13.064993*d),F=rad*(93.272+13.229350*d),l=L+rad*6.289*Math.sin(M),b=rad*5.128*Math.sin(F);return{ra:RA(l,b),dec:DEC(l,b),dist:385001-20905*Math.cos(M)}}
+function alt(date,fn){const d=toDays(date),c=fn(d);return altOf(sid(d,rad*-S.lng)-c.ra,rad*S.lat,c.dec)/rad}
+function illum(date){const d=toDays(date),s=sunC(d),m=moonC(d),sd=149598000;const phi=Math.acos(Math.sin(s.dec)*Math.sin(m.dec)+Math.cos(s.dec)*Math.cos(m.dec)*Math.cos(s.ra-m.ra));const inc=Math.atan2(sd*Math.sin(phi),m.dist-sd*Math.cos(phi));const ang=Math.atan2(Math.cos(s.dec)*Math.sin(s.ra-m.ra),Math.sin(s.dec)*Math.cos(m.dec)-Math.cos(s.dec)*Math.sin(m.dec)*Math.cos(s.ra-m.ra));return{frac:(1+Math.cos(inc))/2,phase:0.5+0.5*inc*(ang<0?-1:1)/Math.PI}}
+const phaseName=p=>p<.03||p>.97?'New moon':p<.22?'Waxing crescent':p<.28?'First quarter':p<.47?'Waxing gibbous':p<.53?'Full moon':p<.72?'Waning gibbous':p<.78?'Last quarter':'Waning crescent';
+let cache={};
+function dayInfo(k){const ck=k+S.lat+S.lng+OFF;if(cache[ck])return cache[ck];const start=Date.parse(k+'T00:00:00Z')-OFF*1e3;let sr=null,ss=null,mr=null,ms=null,mt=null,mu=null,ps=null,pm=null,mx=-99,mn=99;
+for(let m=0;m<=1440;m+=5){const d=new Date(start+m*MIN),a=alt(d,sunC),b=alt(d,moonC);
+if(ps!==null){if(ps<-.833&&a>=-.833)sr=d;if(ps>=-.833&&a<-.833)ss=d}ps=a;
+if(pm!==null){if(pm<.13&&b>=.13)mr=d;if(pm>=.13&&b<.13)ms=d}pm=b;if(b>mx){mx=b;mt=d}if(b<mn){mn=b;mu=d}}
+if(!sr)sr=new Date(start+7*HR);if(!ss)ss=new Date(start+17*HR);
+const il=illum(new Date(start+12*HR));return cache[ck]={sr,ss,mr,ms,mt,mu,frac:il.frac,phase:il.phase}}
+function moonSvg(p,s){const r=s/2-2,c=s/2,wax=p<.5,k=Math.cos(2*Math.PI*p),rx=Math.abs(k)*r,s1=wax?1:0,s2=k>0?(wax?0:1):(wax?1:0);
+return `<svg viewBox="0 0 ${s} ${s}" width="${s}" height="${s}" aria-hidden="true"><circle cx="${c}" cy="${c}" r="${r}" fill="var(--moondark)"/><path d="M${c} ${c-r}A${r} ${r} 0 0 ${s1} ${c} ${c+r}A${rx} ${r} 0 0 ${s2} ${c} ${c-r}Z" fill="var(--moonlit)"/></svg>`}
+/* ---------- rut ---------- */
+function peakMs(d){const md=S.peak||REGIONS[S.region][1],l=lt(d),y=l.getUTCFullYear(),mo=l.getUTCMonth()+1,sy=mo>=7?y:y-1,pmo=+md.slice(0,2);return Date.UTC(pmo<7?sy+1:sy,pmo-1,+md.slice(3,5))}
+function rut(d){const days=Math.round((Date.parse(dayKey(d)+'T00:00:00Z')-peakMs(d))/864e5);return{...PHASES.find(p=>days<=p.max),days}}
+/* ---------- hourly score ---------- */
+function score(i){const h=H[i],t=new Date(h.t+30*MIN),T=t.getTime(),D=dayInfo(dayKey(t)),rp=rut(t),f=[];const sr=D.sr.getTime(),ss=D.ss.getTime();
+const g=(x,c,s)=>Math.exp(-((x-c)**2)/(2*s*s));const light=T>sr-45*MIN&&T<ss+45*MIN;const pk=Math.max(g(T,sr+15*MIN,70*MIN),g(T,ss-20*MIN,70*MIN));let v;
+if(!light){v=.3;f.push(['After dark: deer move, but no shooting light',0])}
+else{v=.2+.6*pk;f.push([pk>.5?'Prime dawn/dusk window':'Midday lull',0]);if(['chase','peak','second'].includes(rp.id)&&T>sr+2*HR&&T<ss-2*HR){v+=.16;f.push(['Rut: bucks on their feet midday',.16])}}
+const near=(x,w)=>x&&Math.abs(T-x.getTime())<w;
+if(near(D.mt,HR)||near(D.mu,HR)){v+=.1;f.push([near(D.mt,HR)?'Moon overhead (major period)':'Moon underfoot (major period)',.1])}
+else if(near(D.mr,40*MIN)||near(D.ms,40*MIN)){v+=.06;f.push([near(D.mr,40*MIN)?'Moonrise (minor period)':'Moonset (minor period)',.06])}
+if(i>=24){const dT=h.temp-H[i-24].temp;if(dT<=-6){const a=Math.min(.16,(-dT-4)*.02);v+=a;f.push([`${Math.round(-dT)}°F colder than yesterday`,a])}else if(dT>=8){v-=.06;f.push([`${Math.round(dT)}°F warmer than yesterday`,-.06])}}
+if(h.temp>55){const a=Math.min(.2,(h.temp-55)*.012);v-=a;f.push(['Warm for the season',-a])}else if(h.temp<32){v+=.04;f.push(['Below freezing: deer feed more',.04])}
+if(i>=3){const dp=h.pres-H[i-3].pres;if(dp<=-2){v+=.08;f.push(['Pressure dropping fast (front coming)',.08])}else if(dp>=1){v+=.07;f.push(['Pressure rising behind a front',.07])}}
+if(h.pres>=1020){v+=.04;f.push(['High pressure',.04])}else if(h.pres<1004){v-=.05;f.push(['Low pressure',-.05])}
+if(h.ws<8){v+=.04;f.push(['Light wind',.04])}else if(h.ws>14){const a=Math.min(.2,(h.ws-14)*.015);v-=a;f.push([`Strong wind (${Math.round(h.ws)} mph)`,-a])}
+if(h.gust>28){v-=.05;f.push(['Gusty',-.05])}
+if(h.pr>=.08){v-=.15;f.push(['Heavy rain or snow',-.15])}else if(h.pr<.01&&i>=3&&H[i-1].pr+H[i-2].pr+H[i-3].pr>=.05){v+=.08;f.push(['Right after rain or snow',.08])}
+if(D.frac>.8&&light){if(T<sr+2*HR){v-=.04;f.push(['Bright moon: night feeding dulls dawn',-.04])}else if(T<ss-2*HR){v+=.04;f.push(['Bright moon: more midday movement',.04])}}
+const before=v;v*=rp.mult;if(rp.mult!==1)f.push([rp.name+' timing',v-before]);
+return{v:Math.round(Math.max(0,Math.min(1,v))*100),light,f,rp,D}}
+const word=v=>v>=80?'Excellent':v>=65?'Good':v>=50?'Fair':v>=35?'Slow':'Poor';
+const col=v=>v>=65?'var(--blaze)':v>=50?'var(--olive)':'var(--mute)';
+const hex=v=>v>=65?'#ff6a13':v>=50?'#6f8a45':'#8a917e';
+const iAt=ms=>H.findIndex(h=>ms>=h.t&&ms<h.t+HR);
+const avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):0;
+function sits(k){const D=dayInfo(k),sr=D.sr.getTime(),ss=D.ss.getTime(),idx=[];H.forEach((h,i)=>{if(dayKey(new Date(h.t))===k)idx.push(i)});
+const am=idx.filter(i=>{const T=H[i].t+30*MIN;return T>=sr-30*MIN&&T<=sr+3*HR}),pm=idx.filter(i=>{const T=H[i].t+30*MIN;return T>=ss-3*HR&&T<=ss+30*MIN});
+return{D,am:avg(am.map(i=>SC[i].v)),pm:avg(pm.map(i=>SC[i].v)),ai:iAt(sr+HR),pi:iAt(ss-HR),hi:Math.max(...idx.map(i=>H[i].temp)),lo:Math.min(...idx.map(i=>H[i].temp))}}
+function nextSits(){const now=Date.now(),keys=[...new Set(H.map(h=>dayKey(new Date(h.t))))],out=[];
+for(const k of keys){const D=dayInfo(k),today=k===dayKey(new Date());for(const [kind,T] of [['AM',D.sr.getTime()+HR],['PM',D.ss.getTime()-HR]]){if(T>now-HR&&out.length<2){const i=iAt(T);if(i>=0)out.push({k,kind,i,label:(today?(kind==='AM'?'This morning':'This evening'):(k===dayKey(new Date(now+864e5))?'Tomorrow ':fmtDay(k)+' ')+(today?'':kind==='AM'?'morning':'evening'))})}}}return out}
+/* ---------- weather ---------- */
+async function load(){$('#stamp').textContent='Updating…';
+try{const u=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lng}&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,cloud_cover&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&past_days=1&forecast_days=7`;
+const r=await fetch(u);if(!r.ok)throw new Error(r.status);const j=await r.json();OFF=j.utc_offset_seconds;const x=j.hourly;
+H=x.time.map((t,i)=>({t:Date.parse(t+':00Z')-OFF*1e3,temp:x.temperature_2m[i],pres:x.pressure_msl[i],ws:x.wind_speed_10m[i],wd:x.wind_direction_10m[i],gust:x.wind_gusts_10m[i],pr:x.precipitation[i]||0,cc:x.cloud_cover[i]})).filter(h=>h.temp!=null&&h.pres!=null);
+LIVE=true;$('#banner').hidden=true}
+catch(err){LIVE=false;H=demo();$('#banner').hidden=false;$('#banner').textContent='Live weather can’t load in this preview, so the weather below is made-up sample data. Moon, sun and rut timing are real. Open the full app in a regular browser for live hourly weather and the satellite map.'}
+cache={};SC=H.map((_,i)=>score(i));updated=Date.now();if(sel===null||sel>=H.length)sel=null;render();if(!map)initMap();else{map.setView([S.lat,S.lng]);drawStands()}}
+function demo(){const start=Date.parse(dayKey(new Date(Date.now()-864e5))+'T00:00:00Z')-OFF*1e3,out=[];
+for(let i=0;i<192;i++){const lh=i%24,d=Math.floor(i/24),front=d>=3?-9:0;out.push({t:start+i*HR,temp:42+front+9*Math.sin((lh-9)/24*2*Math.PI),pres:1014+(d===2?-lh/3:d===3?-8+lh/3:d>3?2:0),ws:Math.max(1,5+4*Math.sin(i/7)+(d===2?6:0)),wd:((d<2?200:d===2?240:310)+20*Math.sin(i/5)+360)%360,gust:0,pr:d===2&&lh>14&&lh<22?.06:0,cc:50});out[i].gust=out[i].ws*1.6}return out}
+/* ---------- render ---------- */
+function render(){const now=Date.now(),ni=Math.max(0,iAt(now)),s=SC[ni],h=H[ni],D=dayInfo(dayKey(new Date(now))),rp=rut(new Date(now)),il=illum(new Date(now));
+$('#stamp').textContent=`${LIVE?'Live weather':'Sample weather'} · updated ${new Date(updated).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · refreshes every hour`;
+$('#nowlbl').textContent=s.light?`Deer movement · ${fmtT(new Date(now))}`:`After dark · ${fmtT(new Date(now))} (deer active, no shooting light)`;
+$('#nowv').textContent=s.v;$('#nowword').textContent=word(s.v);$('#place').textContent=S.place;
+const dp=ni>=3?h.pres-H[ni-3].pres:0;
+$('#chips').innerHTML=[`${Math.round(h.temp)}°F`,`Wind ${dirName(h.wd)} ${Math.round(h.ws)} mph`,`${(h.pres*.02953).toFixed(2)} inHg ${dp>.5?'rising':dp<-.5?'falling':'steady'}`,`Sunrise ${fmtT(D.sr)}`,`Sunset ${fmtT(D.ss)}`].map(c=>`<span class="chip">${c}</span>`).join('');
+const ns=nextSits();$('#bestsit').innerHTML=ns.map(n=>`<div><b>${n.label}:</b> ${SC[n.i].v} · ${word(SC[n.i].v)} · wind ${dirName(H[n.i].wd)} ${Math.round(H[n.i].ws)} mph</div>`).join('');
+$('#moonpic').innerHTML=moonSvg(il.phase,88);$('#rutname').textContent=rp.name;
+$('#rutdays').textContent=rp.days===0?'Peak breeding date is today':`${Math.abs(rp.days)} day${Math.abs(rp.days)===1?'':'s'} ${rp.days<0?'before':'after'} peak breeding`;
+$('#ruttip').textContent=rp.tip;
+$('#moontxt').textContent=`${phaseName(il.phase)}, ${Math.round(il.frac*100)}% lit · moon overhead ${fmtT(D.mt)}, underfoot ${fmtT(D.mu)}`;
+drawChart();renderDetail(sel??ni);renderDays();renderStands()}
+function drawChart(){const svg=$('#chart'),W=svg.clientWidth,Hh=svg.clientHeight;if(!W)return;const ni=Math.max(0,iAt(Date.now())),n=Math.min(48,H.length-ni),bw=W/n,top=8,base=Hh-28,step=W<520?6:3;let o='';
+for(let j=0;j<n;j++){const i=ni+j,s=SC[i],bh=Math.max(3,(base-top)*s.v/100),x=j*bw;
+o+=`<rect class="bar" data-i="${i}" x="${x+1}" y="${base-bh}" width="${Math.max(1,bw-2)}" height="${bh}" rx="2" fill="${col(s.v)}" opacity="${s.light?1:.3}" stroke="${i===sel?'var(--ink)':'none'}" stroke-width="2"/>`;
+const l=lt(new Date(H[i].t));if(l.getUTCHours()%step===0)o+=`<text x="${x+bw/2}" y="${Hh-10}" text-anchor="middle" font-size="12" fill="var(--sub)">${l.getUTCHours()===0?fmtDay(dayKey(new Date(H[i].t))).split(',')[0]:fmtH(new Date(H[i].t))}</text>`}
+o+=`<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--line)"/>`;svg.innerHTML=o}
+function renderDetail(i){const s=SC[i],h=H[i],t=new Date(h.t);
+$('#detail').innerHTML=`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><b>${fmtDay(dayKey(t))} · ${fmtT(t)}</b><span class="pill" style="background:${hex(s.v)}">${s.v} ${word(s.v)}</span></div>
+<div class="sub small">${Math.round(h.temp)}°F · wind ${dirName(h.wd)} ${Math.round(h.ws)} mph, gusts ${Math.round(h.gust)} · ${(h.pres*.02953).toFixed(2)} inHg · precip ${h.pr.toFixed(2)} in</div>
+<ul>${s.f.map(([l,d])=>`<li><span>${l}</span><span class="${d>0?'pos':d<0?'neg':'sub'}">${d?(d>0?'+':'−')+Math.round(Math.abs(d)*100):''}</span></li>`).join('')}</ul>`}
+function renderDays(){const keys=[...new Set(H.map(h=>dayKey(new Date(h.t))))].filter(k=>k>=dayKey(new Date())).slice(0,7);
+$('#days').innerHTML=keys.map(k=>{const d=sits(k),best=Math.max(d.am,d.pm),w=d.ai>=0?H[d.ai]:null;return `<div class="day"><div class="row"><b>${fmtDay(k)}</b>${moonSvg(d.D.phase,26)}</div>
+<div class="row"><span class="sub">Morning</span><span class="pill" style="background:${hex(d.am)}">${d.am}</span></div>
+<div class="row"><span class="sub">Evening</span><span class="pill" style="background:${hex(d.pm)}">${d.pm}</span></div>
+<div class="small">${Math.round(d.hi)}° / ${Math.round(d.lo)}°F${w?` · AM wind ${dirName(w.wd)} ${Math.round(w.ws)}`:''}</div>
+<div class="small sub">${word(best)} day · ${rut(new Date(Date.parse(k+'T12:00:00Z'))).name}</div></div>`}).join('')}
+/* ---------- stands ---------- */
+if(!S.stands){S.stands=[{id:1,name:'Saddle ladder (sample)',type:'saddle',from:270,lat:S.lat+.004,lng:S.lng-.003},{id:2,name:'Bean field edge (sample)',type:'food',from:180,lat:S.lat-.003,lng:S.lng+.004},{id:3,name:'Creek crossing (sample)',type:'creek',from:45,lat:S.lat+.001,lng:S.lng+.006}];store.set('stands',S.stands)}
+function standScore(s,i){if(i<0)return null;const w=H[i],fit=Math.cos((w.wd-s.from)*rad),tw=SC[i].rp.w[s.type]??.5;return{v:Math.round(Math.max(0,Math.min(100,SC[i].v*.45+tw*35+fit*20))),fit}}
+const windWord=f=>f>.7?'Good wind':f>-.2?'Crosswind, watch it':'Bad wind, deer will smell you';
+function renderStands(){const ns=nextSits(),n=ns[0];
+if(!S.stands.length){$('#standlist').innerHTML='<div class="empty">No stands yet. Tap the map or use Add stand.</div>';return}
+const rows=S.stands.map(s=>({s,r:n?standScore(s,n.i):null,r2:ns[1]?standScore(s,ns[1].i):null})).sort((a,b)=>(b.r?.v??0)-(a.r?.v??0));
+$('#standlist').innerHTML=rows.map(({s,r,r2})=>`<div class="stand"><div class="row"><b>${esc(s.name)}</b>${r?`<span class="pill" style="background:${hex(r.v)}">${r.v}</span>`:''}</div>
+<div class="small sub">${TYPES[s.type]} · deer come from ${DIRS[Math.round(s.from/45)%8]}</div>
+${r?`<div class="small">${n.label}: ${windWord(r.fit)}${r2?` · ${ns[1].label}: ${r2.v}`:''}</div>`:''}
+<div class="row"><span class="small sub">${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}</span><span style="display:flex;gap:6px">${map?`<button type="button" data-fly="${s.id}">Show</button>`:''}<button type="button" data-del="${s.id}">Delete</button></span></div></div>`).join('');
+drawStands()}
+function drawStands(){if(!map)return;layer.clearLayers();const n=nextSits()[0];
+S.stands.forEach(s=>{const r=n?standScore(s,n.i):null;L.circleMarker([s.lat,s.lng],{radius:11,color:'#fff',weight:3,fillColor:hex(r?r.v:0),fillOpacity:1}).bindTooltip(`${esc(s.name)}${r?' · '+r.v:''}`,{permanent:true,direction:'right',offset:[10,0]}).addTo(layer)});
+const h=H[Math.max(0,iAt(Date.now()))];if(h)$('#windbadge').innerHTML=`<svg width="22" height="22" viewBox="-11 -11 22 22" style="transform:rotate(${h.wd+180}deg)" aria-hidden="true"><path d="M0-9L6 7L0 3L-6 7Z" fill="#ff6a13"/></svg>Wind from ${dirName(h.wd)} · ${Math.round(h.ws)} mph`}
+function initMap(){if(!window.L||!LIVE){$('#mapbox').hidden=true;$('#mapnote').hidden=false;return}
+map=L.map('map').setView([S.lat,S.lng],14);
+const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri'}),
+topo=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap, © OpenStreetMap contributors'}),
+osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
+sat.addTo(map);L.control.layers({Satellite:sat,Topo:topo,Street:osm}).addTo(map);layer=L.layerGroup().addTo(map);
+map.on('click',ev=>openSheet(ev.latlng.lat,ev.latlng.lng));renderStands()}
+function openSheet(lat,lng){$('#slat').value=lat.toFixed(5);$('#slng').value=lng.toFixed(5);$('#sname').value='';$('#sheet').hidden=false;$('#sname').focus()}
+$('#stype').innerHTML=Object.entries(TYPES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+$('#sfrom').innerHTML=DIRS.map((d,i)=>`<option value="${i*45}">${d}</option>`).join('');
+$('#standform').addEventListener('submit',ev=>{ev.preventDefault();const lat=parseFloat($('#slat').value),lng=parseFloat($('#slng').value);if(!isFinite(lat)||!isFinite(lng))return;
+S.stands.push({id:Date.now(),name:$('#sname').value.trim()||'Stand',type:$('#stype').value,from:+$('#sfrom').value,lat,lng});store.set('stands',S.stands);$('#sheet').hidden=true;renderStands()});
+$('#cancel').addEventListener('click',()=>$('#sheet').hidden=true);
+$('#addstand').addEventListener('click',()=>{const c=map?map.getCenter():{lat:S.lat,lng:S.lng};openSheet(c.lat,c.lng)});
+$('#standlist').addEventListener('click',ev=>{const d=ev.target.closest('[data-del]'),f=ev.target.closest('[data-fly]');
+if(d){S.stands=S.stands.filter(s=>s.id!=d.dataset.del);store.set('stands',S.stands);renderStands()}
+if(f&&map){const s=S.stands.find(s=>s.id==f.dataset.fly);map.setView([s.lat,s.lng],17);$('#map').scrollIntoView({behavior:'smooth',block:'center'})}});
+/* ---------- controls ---------- */
+$('#chart').addEventListener('click',ev=>{const r=ev.target.closest('[data-i]');if(!r)return;sel=+r.dataset.i;drawChart();renderDetail(sel)});
+const ro=new ResizeObserver(()=>{if(H.length)drawChart()});ro.observe($('#chartbox'));
+function setLoc(lat,lng,place){S.lat=lat;S.lng=lng;S.place=place;store.set('lat',lat);store.set('lng',lng);store.set('place',place);sel=null;load()}
+$('#locform').addEventListener('submit',async ev=>{ev.preventDefault();const q=$('#locq').value.trim();if(!q)return;const m=q.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
+if(m){setLoc(+m[1],+m[2],`${(+m[1]).toFixed(3)}, ${(+m[2]).toFixed(3)}`);return}
+try{const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=en&countryCode=US`);const j=await r.json();const p=j.results&&j.results[0];
+if(!p){$('#stamp').textContent=`Couldn’t find “${q}”. Try “Town, State” or lat, lon.`;return}setLoc(p.latitude,p.longitude,[p.name,p.admin1].filter(Boolean).join(', '))}
+catch(e){$('#stamp').textContent='Town search needs the full app. Enter lat, lon instead.'}});
+$('#gps').addEventListener('click',()=>{if(!navigator.geolocation){$('#stamp').textContent='Location isn’t available here. Enter a town or lat, lon.';return}
+navigator.geolocation.getCurrentPosition(p=>setLoc(p.coords.latitude,p.coords.longitude,'My location'),()=>{$('#stamp').textContent='Location was blocked. Enter a town or lat, lon.'},{timeout:10000})});
+$('#refresh').addEventListener('click',load);
+$('#region').innerHTML=Object.entries(REGIONS).map(([k,[n,d]])=>`<option value="${k}">${n} (peak ~${new Date('2026-'+d+'T12:00:00Z').toLocaleDateString(undefined,{month:'short',day:'numeric',timeZone:'UTC'})})</option>`).join('');
+$('#region').value=S.region;if(S.peak)$('#peak').value=`2026-${S.peak}`;
+$('#region').addEventListener('change',ev=>{S.region=ev.target.value;store.set('region',S.region);S.peak='';store.set('peak','');$('#peak').value='';SC=H.map((_,i)=>score(i));render()});
+$('#peak').addEventListener('change',ev=>{S.peak=ev.target.value?ev.target.value.slice(5):'';store.set('peak',S.peak);SC=H.map((_,i)=>score(i));render()});
+/* ---------- hourly refresh ---------- */
+function schedule(){clearTimeout(timer);const now=Date.now();timer=setTimeout(()=>{load();schedule()},Math.ceil(now/HR)*HR+9e4-now)}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&updated&&Date.now()-updated>HR)load()});
+setInterval(()=>{if(H.length)render()},5*MIN);
+load();schedule();
+}
+</script></body></html>
