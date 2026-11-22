@@ -58,6 +58,7 @@ header button{background:#2a3a23;border-color:#3d5233;color:#fff}
 .hrow.dark{opacity:.55}
 @media(max-width:600px){.hrow{grid-template-columns:4.2em 3em minmax(0,1fr)}.hrow .wx{grid-column:3;text-align:left}}
 .windgrid{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:clamp(16px,4vw,40px);align-items:center}
+.cbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}.crot{transition:transform .2s linear;will-change:transform}.facemark{text-align:center;color:var(--blaze);font-weight:700;font-size:14px;line-height:1.2;margin-bottom:6px}.facemark[hidden]{display:none}
 .compass svg{width:100%;height:auto;max-width:320px;display:block;margin:0 auto}
 .wbig{font:700 44px "Barlow Condensed",sans-serif}.wnote{margin:8px 0 0;padding-left:12px;border-left:4px solid var(--line)}.wnote.warn{border-color:var(--blaze)}
 .wstrip{display:flex;gap:6px;overflow-x:auto;padding:14px 0 4px}
@@ -119,7 +120,8 @@ nav a{color:var(--ink);text-decoration:none;white-space:nowrap}
 </div></section>
 <section class="band" id="wind" style="padding-top:0"><div class="wrap">
 <h2>Wind &amp; scent</h2><div class="sub" style="margin-bottom:12px">The arrow shows where the wind is blowing. The orange cone is where your scent drifts, so keep deer trails out of it. Tap an hour to see its wind.</div>
-<div class="windgrid"><div class="compass" id="compass"></div><div id="windinfo"></div></div>
+<div class="cbar"><button type="button" id="livecomp" class="go">Point my phone</button><span id="facing" class="sub">Hold your phone flat and the dial turns to match the woods around you.</span></div>
+<div class="windgrid"><div class="compass"><div class="facemark" id="facemark" hidden><svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M8 0L16 12H0Z" fill="#ff6a13"/></svg><br>Where your phone points</div><div id="compass" class="crot"></div></div><div id="windinfo"></div></div>
 <div class="wstrip" id="wstrip"></div>
 </div></section>
 <section class="band" id="week" style="padding-top:0"><div class="wrap">
@@ -271,6 +273,18 @@ for(let d=0;d<360;d+=22.5){const big=d%90===0,r1=big?94:100,t=d*rad;o+=`<line x1
 o+=`<g transform="rotate(${wd+180} 120 120)"><path d="M120 120L${120-x} ${120-y}A${R} ${R} 0 0 1 ${120+x} ${120-y}Z" fill="#ff6a13" opacity=".28"/></g>`;
 [['N',0],['E',90],['S',180],['W',270]].forEach(([l,d])=>{const t=d*rad;o+=`<text x="${120+82*Math.sin(t)}" y="${120-82*Math.cos(t)+6}" text-anchor="middle" font-size="17" font-weight="700" fill="var(--ink)" font-family="Barlow Condensed,sans-serif">${l}</text>`});
 o+=`<g transform="rotate(${wd+180} 120 120)"><line x1="120" y1="196" x2="120" y2="62" stroke="var(--ink)" stroke-width="7" stroke-linecap="round"/><path d="M120 40L136 70H104Z" fill="var(--ink)"/></g><circle cx="120" cy="120" r="9" fill="#ff6a13" stroke="var(--card)" stroke-width="3"/></svg>`;return o}
+let live=false,cur=0,head=null,liveTimer=null;
+function onOri(e){let h=null;if(typeof e.webkitCompassHeading==='number'&&!isNaN(e.webkitCompassHeading))h=e.webkitCompassHeading;else if(e.absolute&&e.alpha!=null)h=360-e.alpha;if(h==null)return;
+const so=(screen.orientation&&screen.orientation.angle)||window.orientation||0;h=((h+so)%360+360)%360;head=h;const d=((-h-cur)%360+540)%360-180;cur+=d;$('#compass').style.transform=`rotate(${cur}deg)`;facing()}
+function facing(){if(!live)return;if(head==null){$('#facing').textContent='Waiting for the compass… hold your phone flat.';return}
+const i=sel??Math.max(0,iAt(Date.now())),wd=H[i].wd,rel=((wd-head)%360+360)%360,side=rel<45||rel>=315?'in your face':rel<135?'from your right':rel<225?'at your back':'from your left';
+$('#facing').innerHTML=`Facing <b>${dirName(head)}</b> (${Math.round(head)}°) · wind <b>${side}</b> · scent goes ${rel<45||rel>=315?'behind you':rel<135?'to your left':rel<225?'out in front of you':'to your right'}`}
+async function startLive(){try{if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){const r=await DeviceOrientationEvent.requestPermission();if(r!=='granted'){$('#facing').textContent='Compass access was denied. Close the app completely, reopen it and tap Allow.';return}}}
+catch(e){$('#facing').textContent='The live compass works on a phone with the hosted app.';return}
+window.addEventListener('deviceorientationabsolute',onOri,true);window.addEventListener('deviceorientation',onOri,true);live=true;head=null;$('#livecomp').textContent='Stop compass';$('#facemark').hidden=false;facing();
+clearTimeout(liveTimer);liveTimer=setTimeout(()=>{if(live&&head==null)$('#facing').textContent='No compass reading. This works on a phone (not a computer) with the hosted app.'},4000)}
+function stopLive(){window.removeEventListener('deviceorientationabsolute',onOri,true);window.removeEventListener('deviceorientation',onOri,true);live=false;head=null;cur=0;$('#compass').style.transform='';$('#facemark').hidden=true;$('#livecomp').textContent='Point my phone';$('#facing').textContent='Hold your phone flat and the dial turns to match the woods around you.'}
+$('#livecomp').addEventListener('click',()=>live?stopLive():startLive());
 function renderWind(){const ni=Math.max(0,iAt(Date.now())),i=sel??ni,h=H[i],s=SC[i],T=h.t+30*MIN,sr=s.D.sr.getTime(),ss=s.D.ss.getTime();
 $('#compass').innerHTML=compassSvg(h.wd,h.ws);
 const notes=[];
@@ -283,7 +297,7 @@ ${notes.map(([t,w])=>`<p class="wnote${w?' warn':''}">${t}</p>`).join('')}
 ${S.stands.length?`<p class="wnote"><b>Good wind:</b> ${good.join(', ')||'none of your stands'}${bad.length?`<br><b>Avoid:</b> ${bad.join(', ')}`:''}</p>`:''}`;
 let o='',last='';for(let j=ni;j<Math.min(H.length,ni+48);j++){if(!SC[j].light)continue;const k=dayKey(new Date(H[j].t));if(k!==last){o+=`<div class="wsep">${k===dayKey(new Date())?'Today':fmtDay(k).split(',')[0]}</div>`;last=k}
 const w=H[j];o+=`<div class="wcell${j===i?' on':''}" data-i="${j}"><span class="sub">${fmtT(new Date(w.t)).replace(':00','')}</span>${arrow(w.wd,30,spdCol(w.ws))}<b>${dirName(w.wd)}</b>${Math.round(w.ws)} mph</div>`}
-$('#wstrip').innerHTML=o}
+$('#wstrip').innerHTML=o;facing()}
 function renderDetail(i){const s=SC[i],h=H[i],t=new Date(h.t);
 $('#detail').innerHTML=`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><b>${fmtDay(dayKey(t))} · ${fmtT(t)}</b><span class="pill" style="background:${hex(s.v)}">${s.v} ${word(s.v)}</span></div>
 <div class="sub small">${Math.round(h.temp)}°F · wind ${dirName(h.wd)} ${Math.round(h.ws)} mph, gusts ${Math.round(h.gust)} · ${(h.pres*.02953).toFixed(2)} inHg · precip ${h.pr.toFixed(2)} in</div>
