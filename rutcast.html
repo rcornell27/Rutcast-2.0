@@ -57,6 +57,14 @@ header button{background:#2a3a23;border-color:#3d5233;color:#fff}
 .hrow .t{font-weight:600;white-space:nowrap}.hrow .why{font-size:14px;color:var(--sub)}.hrow .wx{font-size:14px;text-align:right;white-space:nowrap}
 .hrow.dark{opacity:.55}
 @media(max-width:600px){.hrow{grid-template-columns:4.2em 3em minmax(0,1fr)}.hrow .wx{grid-column:3;text-align:left}}
+.windgrid{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:clamp(16px,4vw,40px);align-items:center}
+.compass svg{width:100%;height:auto;max-width:320px;display:block;margin:0 auto}
+.wbig{font:700 44px "Barlow Condensed",sans-serif}.wnote{margin:8px 0 0;padding-left:12px;border-left:4px solid var(--line)}.wnote.warn{border-color:var(--blaze)}
+.wstrip{display:flex;gap:6px;overflow-x:auto;padding:14px 0 4px}
+.wcell{flex:none;width:66px;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:8px 4px;text-align:center;cursor:pointer;font-size:13px;line-height:1.3}
+.wcell.on{box-shadow:0 0 0 3px var(--blaze) inset;border-color:var(--blaze)}.wcell b{display:block;font-size:15px}.wcell svg{display:block;margin:4px auto}
+.wsep{flex:none;align-self:stretch;display:grid;place-items:center;font-weight:600;font-size:13px;color:var(--sub);writing-mode:vertical-rl;transform:rotate(180deg);padding:0 2px}
+@media(max-width:700px){.windgrid{grid-template-columns:minmax(0,1fr)}.compass svg{max-width:260px}}
 .week{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
 .day{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:6px}
 .day .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -100,7 +108,7 @@ nav a{color:var(--ink);text-decoration:none;white-space:nowrap}
 </div>
 <div class="phase"><div id="moonpic"></div><div><h3 id="rutname"></h3><div class="sub" id="rutdays"></div><p id="ruttip"></p><p class="sub small" id="moontxt"></p></div></div>
 </div></section>
-<nav class="scroll"><a href="#hours">Hourly</a><a href="#week">14 days</a><a href="#stands">Stand map</a><a href="#settings">Settings</a></nav>
+<nav class="scroll"><a href="#hours">Hourly</a><a href="#wind">Wind</a><a href="#week">14 days</a><a href="#stands">Stand map</a><a href="#settings">Settings</a></nav>
 <section class="band" id="hours"><div class="wrap">
 <h2>Next 48 hours</h2><div class="sub">Tap a bar to see what is driving the score. Faded bars are outside shooting light.</div>
 <div class="legend"><span><i style="background:var(--blaze)"></i>Good to excellent (65+)</span><span><i style="background:var(--olive)"></i>Fair (50–64)</span><span><i style="background:var(--mute)"></i>Slow</span></div>
@@ -108,6 +116,11 @@ nav a{color:var(--ink);text-decoration:none;white-space:nowrap}
 <div class="detail" id="detail"></div>
 <div class="hlhead"><h3 style="font-size:24px">Hour by hour</h3><label class="tog"><input type="checkbox" id="lightonly" checked> Shooting light only</label></div>
 <div class="hlist" id="hlist"></div>
+</div></section>
+<section class="band" id="wind" style="padding-top:0"><div class="wrap">
+<h2>Wind &amp; scent</h2><div class="sub" style="margin-bottom:12px">The arrow shows where the wind is blowing. The orange cone is where your scent drifts, so keep deer trails out of it. Tap an hour to see its wind.</div>
+<div class="windgrid"><div class="compass" id="compass"></div><div id="windinfo"></div></div>
+<div class="wstrip" id="wstrip"></div>
 </div></section>
 <section class="band" id="week" style="padding-top:0"><div class="wrap">
 <h2>14-day outlook</h2><div class="sub" style="margin-bottom:12px">Morning sit runs from 30 minutes before sunrise to 3 hours after; evening sit the last 3 hours of light. Days 8–14 use long-range weather, so treat them as a rough guide and check back as they get closer.</div>
@@ -238,7 +251,7 @@ $('#moonpic').innerHTML=moonSvg(il.phase,88);$('#rutname').textContent=rp.name;
 $('#rutdays').textContent=rp.days===0?'Peak breeding date is today':`${Math.abs(rp.days)} day${Math.abs(rp.days)===1?'':'s'} ${rp.days<0?'before':'after'} peak breeding`;
 $('#ruttip').textContent=rp.tip;
 $('#moontxt').textContent=`${phaseName(il.phase)}, ${Math.round(il.frac*100)}% lit · moon overhead ${fmtT(D.mt)}, underfoot ${fmtT(D.mu)}`;
-drawChart();renderDetail(sel??ni);renderList();renderDays();renderStands()}
+drawChart();renderDetail(sel??ni);renderList();renderWind();renderDays();renderStands()}
 function drawChart(){const svg=$('#chart'),W=svg.clientWidth,Hh=svg.clientHeight;if(!W)return;const ni=Math.max(0,iAt(Date.now())),n=Math.min(48,H.length-ni),bw=W/n,top=8,base=Hh-28,step=W<520?6:3;let o='';
 for(let j=0;j<n;j++){const i=ni+j,s=SC[i],bh=Math.max(3,(base-top)*s.v/100),x=j*bw;
 o+=`<rect class="bar" data-i="${i}" x="${x+1}" y="${base-bh}" width="${Math.max(1,bw-2)}" height="${bh}" rx="2" fill="${col(s.v)}" opacity="${s.light?1:.3}" stroke="${i===sel?'var(--ink)':'none'}" stroke-width="2"/>`;
@@ -250,6 +263,27 @@ if(k!==last){o+=`<div class="hday">${k===dayKey(new Date())?'Today':fmtDay(k)} �
 const big=s.f.filter(x=>Math.abs(x[1])>=.06&&!x[0].endsWith(' timing')).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]))[0],top=big||s.f[0];
 o+=`<div class="hrow${s.light?'':' dark'}${i===sel?' on':''}" data-i="${i}"><span class="t">${fmtT(t).replace(':00','')}</span><span class="pill" style="background:${hex(s.v)};text-align:center">${s.v}</span><span><b>${word(s.v)}</b> <span class="why">${top?'· '+top[0]:''}</span></span><span class="wx">${Math.round(h.temp)}° · ${dirName(h.wd)} ${Math.round(h.ws)} mph${h.pr>=.01?' · '+h.pr.toFixed(2)+'″':''}</span></div>`}
 $('#hlist').innerHTML=o||'<div class="hday">No shooting-light hours in the next 48 hours.</div>'}
+const angDiff=(a,b)=>Math.abs(((a-b)%360+540)%360-180);
+const spdCol=w=>w<8?'var(--olive)':w<=14?'#c9a227':'#c4361a';
+function arrow(wd,size,c){return `<svg width="${size}" height="${size}" viewBox="-12 -12 24 24" aria-hidden="true"><g transform="rotate(${wd+180})"><line x1="0" y1="9" x2="0" y2="-4" stroke="${c}" stroke-width="3" stroke-linecap="round"/><path d="M0-11L6-2H-6Z" fill="${c}"/></g></svg>`}
+function compassSvg(wd,ws){const spread=Math.max(12,34-ws),R=100,a=spread*rad,x=R*Math.sin(a),y=R*Math.cos(a);let o=`<svg viewBox="0 0 240 240" role="img" aria-label="Wind from ${dirName(wd)} at ${Math.round(ws)} mph"><circle cx="120" cy="120" r="108" fill="var(--card)" stroke="var(--line)" stroke-width="2"/><circle cx="120" cy="120" r="66" fill="none" stroke="var(--line)" stroke-dasharray="3 5"/>`;
+for(let d=0;d<360;d+=22.5){const big=d%90===0,r1=big?94:100,t=d*rad;o+=`<line x1="${120+r1*Math.sin(t)}" y1="${120-r1*Math.cos(t)}" x2="${120+106*Math.sin(t)}" y2="${120-106*Math.cos(t)}" stroke="var(--sub)" stroke-width="${big?2.5:1}"/>`}
+o+=`<g transform="rotate(${wd+180} 120 120)"><path d="M120 120L${120-x} ${120-y}A${R} ${R} 0 0 1 ${120+x} ${120-y}Z" fill="#ff6a13" opacity=".28"/></g>`;
+[['N',0],['E',90],['S',180],['W',270]].forEach(([l,d])=>{const t=d*rad;o+=`<text x="${120+82*Math.sin(t)}" y="${120-82*Math.cos(t)+6}" text-anchor="middle" font-size="17" font-weight="700" fill="var(--ink)" font-family="Barlow Condensed,sans-serif">${l}</text>`});
+o+=`<g transform="rotate(${wd+180} 120 120)"><line x1="120" y1="196" x2="120" y2="62" stroke="var(--ink)" stroke-width="7" stroke-linecap="round"/><path d="M120 40L136 70H104Z" fill="var(--ink)"/></g><circle cx="120" cy="120" r="9" fill="#ff6a13" stroke="var(--card)" stroke-width="3"/></svg>`;return o}
+function renderWind(){const ni=Math.max(0,iAt(Date.now())),i=sel??ni,h=H[i],s=SC[i],T=h.t+30*MIN,sr=s.D.sr.getTime(),ss=s.D.ss.getTime();
+$('#compass').innerHTML=compassSvg(h.wd,h.ws);
+const notes=[];
+notes.push(h.ws<5?['Calm: scent pools and swirls, so thermals decide where it goes.']:h.ws<=14?['Steady wind: your scent goes where the cone shows.']:['Strong wind: deer get edgy. Hunt sheltered hollows and the downwind side of cover.',1]);
+if(s.light){if((T>sr-HR&&T<sr+2*HR)||(T>ss-1.5*HR&&T<ss+HR))notes.push(['Cooling air: thermals are pulling scent downhill. Sit above where deer travel.']);else if(T>sr+2*HR&&T<ss-1.5*HR)notes.push(['Warming air: thermals lift scent uphill. Sit below where deer travel.'])}
+for(let j=i+1;j<Math.min(H.length,i+24);j++){if(!SC[j].light)continue;if(angDiff(H[j].wd,h.wd)>60){notes.push([`Heads up: wind swings to ${dirName(H[j].wd)} around ${fmtT(new Date(H[j].t))}.`,1]);break}}
+const good=S.stands.filter(st=>Math.cos((h.wd-st.from)*rad)>.7).map(st=>esc(st.name)),bad=S.stands.filter(st=>Math.cos((h.wd-st.from)*rad)<-.2).map(st=>esc(st.name));
+$('#windinfo').innerHTML=`<div class="sub">${fmtDay(dayKey(new Date(h.t)))} · ${fmtT(new Date(h.t))}</div><div class="wbig">From ${dirName(h.wd)} <span style="white-space:nowrap">· ${Math.round(h.ws)} mph</span></div><div>Gusts ${Math.round(h.gust)} mph · scent drifts ${dirName(h.wd+180)}</div>
+${notes.map(([t,w])=>`<p class="wnote${w?' warn':''}">${t}</p>`).join('')}
+${S.stands.length?`<p class="wnote"><b>Good wind:</b> ${good.join(', ')||'none of your stands'}${bad.length?`<br><b>Avoid:</b> ${bad.join(', ')}`:''}</p>`:''}`;
+let o='',last='';for(let j=ni;j<Math.min(H.length,ni+48);j++){if(!SC[j].light)continue;const k=dayKey(new Date(H[j].t));if(k!==last){o+=`<div class="wsep">${k===dayKey(new Date())?'Today':fmtDay(k).split(',')[0]}</div>`;last=k}
+const w=H[j];o+=`<div class="wcell${j===i?' on':''}" data-i="${j}"><span class="sub">${fmtT(new Date(w.t)).replace(':00','')}</span>${arrow(w.wd,30,spdCol(w.ws))}<b>${dirName(w.wd)}</b>${Math.round(w.ws)} mph</div>`}
+$('#wstrip').innerHTML=o}
 function renderDetail(i){const s=SC[i],h=H[i],t=new Date(h.t);
 $('#detail').innerHTML=`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><b>${fmtDay(dayKey(t))} · ${fmtT(t)}</b><span class="pill" style="background:${hex(s.v)}">${s.v} ${word(s.v)}</span></div>
 <div class="sub small">${Math.round(h.temp)}°F · wind ${dirName(h.wd)} ${Math.round(h.ws)} mph, gusts ${Math.round(h.gust)} · ${(h.pres*.02953).toFixed(2)} inHg · precip ${h.pr.toFixed(2)} in</div>
@@ -293,8 +327,9 @@ $('#standlist').addEventListener('click',ev=>{const d=ev.target.closest('[data-d
 if(d){S.stands=S.stands.filter(s=>s.id!=d.dataset.del);store.set('stands',S.stands);renderStands()}
 if(f&&map){const s=S.stands.find(s=>s.id==f.dataset.fly);map.setView([s.lat,s.lng],17);$('#map').scrollIntoView({behavior:'smooth',block:'center'})}});
 /* ---------- controls ---------- */
-$('#chart').addEventListener('click',ev=>{const r=ev.target.closest('[data-i]');if(!r)return;sel=+r.dataset.i;drawChart();renderDetail(sel);renderList()});
-$('#hlist').addEventListener('click',ev=>{const r=ev.target.closest('[data-i]');if(!r)return;sel=+r.dataset.i;drawChart();renderDetail(sel);renderList();$('#detail').scrollIntoView({behavior:'smooth',block:'center'})});
+$('#chart').addEventListener('click',ev=>{const r=ev.target.closest('[data-i]');if(!r)return;sel=+r.dataset.i;drawChart();renderDetail(sel);renderList();renderWind()});
+$('#hlist').addEventListener('click',ev=>{const r=ev.target.closest('[data-i]');if(!r)return;sel=+r.dataset.i;drawChart();renderDetail(sel);renderList();renderWind();$('#detail').scrollIntoView({behavior:'smooth',block:'center'})});
+$('#wstrip').addEventListener('click',ev=>{const r=ev.target.closest('[data-i]');if(!r)return;sel=+r.dataset.i;drawChart();renderDetail(sel);renderList();renderWind()});
 $('#lightonly').addEventListener('change',renderList);
 const ro=new ResizeObserver(()=>{if(H.length)drawChart()});ro.observe($('#chartbox'));
 function setLoc(lat,lng,place){S.lat=lat;S.lng=lng;S.place=place;store.set('lat',lat);store.set('lng',lng);store.set('place',place);sel=null;load()}
@@ -303,6 +338,11 @@ function parseCoords(q){const m=q.toUpperCase().match(/^\s*(-?\d+(?:\.\d+)?)\s*�
 function pick(list){const box=$('#locpick');box.innerHTML='<div class="sub small">Which one?</div>'+list.map((p,i)=>`<button type="button" data-p="${i}">${esc([p.name,p.admin2,p.admin1].filter(Boolean).join(', '))}</button>`).join('')+'<button type="button" data-p="x">Cancel</button>';box.hidden=false;
 box.onclick=ev=>{const b=ev.target.closest('[data-p]');if(!b)return;box.hidden=true;if(b.dataset.p==='x')return;const p=list[+b.dataset.p];setLoc(p.latitude,p.longitude,[p.name,p.admin1].filter(Boolean).join(', '))}}
 async function geo(name,us){const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=20&language=en&format=json${us?'&countryCode=US':''}`);const j=await r.json();return j.results||[]}
+async function townAt(a,b){const ab=st=>{const k=Object.keys(STATES).find(k=>STATES[k]===st);return k||st};
+try{const r=await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${a}&longitude=${b}&localityLanguage=en`);if(r.ok){const j=await r.json();const t=j.city||j.locality,st=(j.principalSubdivisionCode||'').replace(/^US-/,'')||j.principalSubdivision;if(t)return[t,st].filter(Boolean).join(', ')}}catch(e){}
+try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${a}&lon=${b}&zoom=12&addressdetails=1`);if(r.ok){const d=(await r.json()).address||{};const t=d.city||d.town||d.village||d.hamlet||d.municipality||d.county;if(t)return[t,ab(d.state)].filter(Boolean).join(', ')}}catch(e){}
+return null}
+async function nameSpot(a,b,prefix){const n=await townAt(a,b);if(!n||S.lat!==a||S.lng!==b)return;S.place=prefix?prefix+n:'Near '+n;store.set('place',S.place);$('#place').textContent=S.place;$('#locq').value=n}
 $('#locform').addEventListener('submit',async ev=>{ev.preventDefault();$('#locpick').hidden=true;const q=$('#locq').value.trim();if(!q)return;const c=parseCoords(q);
 if(c){setLoc(c[0],c[1],`${c[0].toFixed(3)}, ${c[1].toFixed(3)}`);return}
 let parts=q.split(',').map(s=>s.trim()).filter(Boolean),name=parts[0],st=(parts[1]||'').replace(/\./g,'');
@@ -317,8 +357,8 @@ $('#stamp').textContent='Pick the right one below the search box.';pick(res.slic
 catch(e){$('#stamp').textContent='Town search needs internet and the hosted app. Tap My location or paste coordinates.'}});
 $('#gps').addEventListener('click',()=>{if(!navigator.geolocation){$('#stamp').textContent='Location isn’t available here. Enter a town, ZIP or coordinates.';return}
 $('#stamp').textContent='Finding your location…';
-navigator.geolocation.getCurrentPosition(p=>setLoc(p.coords.latitude,p.coords.longitude,'My location'),err=>{$('#stamp').textContent=err.code===1?'Location permission is off for this site. On iPhone: Settings → Privacy & Security → Location Services → Safari Websites → While Using the App, then try again.':'Couldn’t get a GPS fix. Try again outside, or enter a town or ZIP.'},{enableHighAccuracy:true,timeout:15000,maximumAge:3e5})});
-$('#maphere').addEventListener('click',()=>{if(!map)return;const c=map.getCenter();setLoc(c.lat,c.lng,`Map spot ${c.lat.toFixed(3)}, ${c.lng.toFixed(3)}`);window.scrollTo({top:0,behavior:'smooth'})});
+navigator.geolocation.getCurrentPosition(p=>{const a=p.coords.latitude,b=p.coords.longitude;setLoc(a,b,'My location');nameSpot(a,b,'')},err=>{$('#stamp').textContent=err.code===1?'Location permission is off for this site. On iPhone: Settings → Privacy & Security → Location Services → Safari Websites → While Using the App, then try again.':'Couldn’t get a GPS fix. Try again outside, or enter a town or ZIP.'},{enableHighAccuracy:true,timeout:15000,maximumAge:3e5})});
+$('#maphere').addEventListener('click',()=>{if(!map)return;const c=map.getCenter();setLoc(c.lat,c.lng,`Map spot ${c.lat.toFixed(3)}, ${c.lng.toFixed(3)}`);nameSpot(c.lat,c.lng,'Map spot near ');window.scrollTo({top:0,behavior:'smooth'})});
 $('#refresh').addEventListener('click',load);
 $('#region').innerHTML=Object.entries(REGIONS).map(([k,[n,d]])=>`<option value="${k}">${n} (peak ~${new Date('2026-'+d+'T12:00:00Z').toLocaleDateString(undefined,{month:'short',day:'numeric',timeZone:'UTC'})})</option>`).join('');
 $('#region').value=S.region;if(S.peak)$('#peak').value=`2026-${S.peak}`;
